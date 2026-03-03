@@ -1,5 +1,5 @@
 import * as errors from "@superbuilders/errors"
-import * as logger from "@superbuilders/slog"
+import type { Thread } from "chat"
 import { eq } from "drizzle-orm"
 import type { Logger } from "inngest"
 import { NonRetriableError } from "inngest"
@@ -16,6 +16,41 @@ const MAX_CYCLES = 5
 const GitHubCommitSchema = z.object({
 	sha: z.string().min(1)
 })
+
+function parseOwnerRepo(repository: string, logger: Logger): { owner: string; repo: string } {
+	const parts = repository.split("/")
+	const owner = parts[0]
+	const repo = parts[1]
+
+	if (!owner || !repo) {
+		logger.error("invalid repository format", { repository })
+		throw new NonRetriableError(`invalid repository format: ${repository}`)
+	}
+
+	return { owner, repo }
+}
+
+function buildSlackLinks(prUrl: string | undefined, agentUrl: string): string {
+	const links: string[] = []
+	if (prUrl) {
+		links.push(`<${prUrl}|View PR>`)
+	}
+	links.push(`<${agentUrl}|View in Cursor>`)
+	return links.join(" \u00b7 ")
+}
+
+async function postToThread(
+	t: Thread,
+	message: string,
+	logger: Logger,
+	context: string
+): Promise<void> {
+	const result = await errors.try(t.post(message))
+	if (result.error) {
+		logger.error("failed to post to slack", { error: result.error, context })
+		throw errors.wrap(result.error, context)
+	}
+}
 
 async function getHeadSha(
 	owner: string,
@@ -74,17 +109,100 @@ async function getHeadSha(
 	return parsed.data.sha
 }
 
-function parseRepository(repository: string): { owner: string; repo: string } {
-	const parts = repository.split("/")
-	const owner = parts[0]
-	const repo = parts[1]
+type StabilizeParams = {
+	owner: string
+	repo: string
+	repository: string
+	branchName: string
+	prUrl: string | undefined
+	threadId: string
+	agentUrl: string
+	knownHeadSha: string | null
+	cycle: number
+}
 
-	if (!owner || !repo) {
-		logger.error("invalid repository format", { repository })
-		throw errors.new("invalid repository format")
+async function resolveFromStabilizeEvent(
+	d: {
+		repository: string
+		branchName: string
+		prUrl?: string
+		threadId: string
+		agentUrl: string
+		headSha: string
+		cycle: number
+	},
+	logger: Logger
+): Promise<StabilizeParams> {
+	const { owner, repo } = parseOwnerRepo(d.repository, logger)
+	const knownHeadSha: string | null = d.headSha
+
+	return {
+		owner,
+		repo,
+		repository: d.repository,
+		branchName: d.branchName,
+		prUrl: d.prUrl,
+		threadId: d.threadId,
+		agentUrl: d.agentUrl,
+		knownHeadSha,
+		cycle: d.cycle
+	}
+}
+
+async function resolveFromFinishedEvent(
+	d: {
+		agentId: string
+		repository?: string
+		branchName?: string
+		prUrl?: string
+		agentUrl?: string
+	},
+	logger: Logger
+): Promise<StabilizeParams> {
+	const rows = await db
+		.select({
+			threadId: cursorAgentThreads.threadId,
+			agentUrl: cursorAgentThreads.agentUrl
+		})
+		.from(cursorAgentThreads)
+		.where(eq(cursorAgentThreads.agentId, d.agentId))
+		.limit(1)
+
+	const row = rows[0]
+	if (!row) {
+		logger.error("no thread found for agent", { agentId: d.agentId })
+		throw new NonRetriableError(`no thread found for agent ${d.agentId}`)
 	}
 
-	return { owner, repo }
+	if (!d.repository || !d.branchName) {
+		logger.error("agent.finished missing required fields", {
+			agentId: d.agentId,
+			repository: d.repository,
+			branchName: d.branchName
+		})
+		throw new NonRetriableError("agent.finished missing repository or branchName")
+	}
+
+	const agentUrl = d.agentUrl ? d.agentUrl : row.agentUrl
+	if (!agentUrl) {
+		logger.error("no agent url available", { agentId: d.agentId })
+		throw new NonRetriableError("agent url not available from event or database")
+	}
+
+	const { owner, repo } = parseOwnerRepo(d.repository, logger)
+	const knownHeadSha: string | null = null
+
+	return {
+		owner,
+		repo,
+		repository: d.repository,
+		branchName: d.branchName,
+		prUrl: d.prUrl,
+		threadId: row.threadId,
+		agentUrl,
+		knownHeadSha,
+		cycle: 1
+	}
 }
 
 const prStabilize = inngest.createFunction(
@@ -105,94 +223,42 @@ const prStabilize = inngest.createFunction(
 
 		const params = await step.run("resolve-params", async () => {
 			const d = event.data
-
 			if ("cycle" in d) {
-				return {
-					repository: d.repository,
-					branchName: d.branchName,
-					prUrl: d.prUrl,
-					threadId: d.threadId,
-					agentUrl: d.agentUrl,
-					cycle: d.cycle
-				}
+				return resolveFromStabilizeEvent(d, logger)
 			}
-
-			const rows = await db
-				.select({
-					threadId: cursorAgentThreads.threadId,
-					agentUrl: cursorAgentThreads.agentUrl
-				})
-				.from(cursorAgentThreads)
-				.where(eq(cursorAgentThreads.agentId, d.agentId))
-				.limit(1)
-
-			const row = rows[0]
-			if (!row) {
-				logger.error("no thread found for agent", { agentId: d.agentId })
-				throw new NonRetriableError(`no thread found for agent ${d.agentId}`)
-			}
-
-			if (!d.repository || !d.branchName) {
-				logger.error("agent.finished missing required fields", {
-					agentId: d.agentId,
-					repository: d.repository,
-					branchName: d.branchName
-				})
-				throw new NonRetriableError("agent.finished missing repository or branchName")
-			}
-
-			const agentUrl = d.agentUrl ? d.agentUrl : row.agentUrl
-
-			return {
-				repository: d.repository,
-				branchName: d.branchName,
-				prUrl: d.prUrl,
-				threadId: row.threadId,
-				agentUrl,
-				cycle: 1
-			}
+			return resolveFromFinishedEvent(d, logger)
 		})
 
-		const { owner, repo } = parseRepository(params.repository)
-
-		const beforeSha = await step.run("get-head-commit", async () => {
-			logger.info("fetching head sha before sleep", {
-				owner,
-				repo,
-				branch: params.branchName,
-				cycle: params.cycle
-			})
-			return getHeadSha(owner, repo, params.branchName, token, logger)
-		})
+		const beforeSha = params.knownHeadSha
+			? params.knownHeadSha
+			: await step.run("get-head-commit", async () => {
+					logger.info("fetching head sha", {
+						owner: params.owner,
+						repo: params.repo,
+						branch: params.branchName,
+						cycle: params.cycle
+					})
+					return getHeadSha(params.owner, params.repo, params.branchName, token, logger)
+				})
 
 		await step.sleep("wait-for-bugbot", SLEEP_DURATION)
 
 		const afterSha = await step.run("check-for-new-commits", async () => {
 			logger.info("fetching head sha after sleep", {
-				owner,
-				repo,
+				owner: params.owner,
+				repo: params.repo,
 				branch: params.branchName,
 				cycle: params.cycle
 			})
-			return getHeadSha(owner, repo, params.branchName, token, logger)
+			return getHeadSha(params.owner, params.repo, params.branchName, token, logger)
 		})
 
 		await step.run("handle-result", async () => {
 			const t = thread(params.threadId)
+			const linkLine = buildSlackLinks(params.prUrl, params.agentUrl)
 
 			if (beforeSha === afterSha) {
-				logger.info("pr stable", {
-					branch: params.branchName,
-					sha: afterSha,
-					cycle: params.cycle
-				})
-
-				const links: string[] = []
-				if (params.prUrl) {
-					links.push(`<${params.prUrl}|View PR>`)
-				}
-				links.push(`<${params.agentUrl}|View in Cursor>`)
-				const linkLine = links.join(" \u00b7 ")
+				logger.info("pr stable", { branch: params.branchName, sha: afterSha, cycle: params.cycle })
 
 				const message = [
 					"*PR Stable*",
@@ -202,12 +268,7 @@ const prStabilize = inngest.createFunction(
 					linkLine
 				].join("\n")
 
-				const postResult = await errors.try(t.post(message))
-				if (postResult.error) {
-					logger.error("failed to post stable message", { error: postResult.error })
-					throw errors.wrap(postResult.error, "post stable message to slack")
-				}
-
+				await postToThread(t, message, logger, "post stable message to slack")
 				return
 			}
 
@@ -224,15 +285,10 @@ const prStabilize = inngest.createFunction(
 					"",
 					`Branch \`${params.branchName}\` is still receiving commits after ${MAX_CYCLES * 10} minutes. Giving up on stabilization watch.`,
 					"",
-					`<${params.agentUrl}|View in Cursor>`
+					linkLine
 				].join("\n")
 
-				const postResult = await errors.try(t.post(message))
-				if (postResult.error) {
-					logger.error("failed to post max-cycles message", { error: postResult.error })
-					throw errors.wrap(postResult.error, "post max-cycles message to slack")
-				}
-
+				await postToThread(t, message, logger, "post max-cycles message to slack")
 				return
 			}
 
