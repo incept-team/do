@@ -205,7 +205,7 @@ type StabilizeParams = {
 	repo: string
 	repository: string
 	branchName: string
-	prUrl: string | undefined
+	prUrl: string
 	threadId: string
 	agentUrl: string
 	knownHeadSha: string | null
@@ -216,7 +216,7 @@ async function resolveFromStabilizeEvent(
 	d: {
 		repository: string
 		branchName: string
-		prUrl?: string
+		prUrl: string
 		threadId: string
 		agentUrl: string
 		headSha: string
@@ -245,7 +245,7 @@ async function resolveFromFinishedEvent(
 		agentId: string
 		repository?: string
 		branchName?: string
-		prUrl?: string
+		prUrl: string
 		agentUrl?: string
 	},
 	logger: Logger
@@ -301,7 +301,7 @@ const prStabilize = inngest.createFunction(
 	[
 		{
 			event: "cursor/agent.finished",
-			if: "event.data.status == 'FINISHED' && event.data.branchName != null"
+			if: "event.data.status == 'FINISHED' && event.data.prUrl != null"
 		},
 		{ event: "cursor/pr.stabilize" }
 	],
@@ -317,7 +317,11 @@ const prStabilize = inngest.createFunction(
 			if ("cycle" in d) {
 				return resolveFromStabilizeEvent(d, logger)
 			}
-			return resolveFromFinishedEvent(d, logger)
+			if (!d.prUrl) {
+				logger.error("agent.finished missing prUrl", { agentId: d.agentId })
+				throw new NonRetriableError("agent.finished missing prUrl")
+			}
+			return resolveFromFinishedEvent({ ...d, prUrl: d.prUrl }, logger)
 		})
 
 		const beforeSha = params.knownHeadSha
@@ -421,11 +425,6 @@ const prStabilize = inngest.createFunction(
 
 			await postToThread(t, message, logger, "post stable message to slack")
 		})
-
-		if (!params.prUrl) {
-			logger.info("no pr url, skipping merge", { branch: params.branchName })
-			return { branch: params.branchName, stable: true, merged: false, cycle: params.cycle }
-		}
 
 		const prNumber = parsePrNumber(params.prUrl, logger)
 
