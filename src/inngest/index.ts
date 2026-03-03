@@ -152,6 +152,15 @@ const schema = {
 		branchName: z.string().optional(),
 		prUrl: z.string().optional(),
 		agentUrl: z.string().optional()
+	}),
+	"cursor/pr.stabilize": z.object({
+		repository: z.string().min(1),
+		branchName: z.string().min(1),
+		prUrl: z.string().optional(),
+		threadId: z.string().min(1),
+		agentUrl: z.string().min(1),
+		headSha: z.string().min(1),
+		cycle: z.number().int().min(1).max(5)
 	})
 }
 

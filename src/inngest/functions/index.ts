@@ -4,6 +4,7 @@ import { exploreFunction } from "@/inngest/functions/agents/explore"
 import { orchestrateFunction } from "@/inngest/functions/agents/orchestrate"
 import { agentLifecycle } from "@/inngest/functions/cursor/agent-lifecycle"
 import { followupLifecycle } from "@/inngest/functions/cursor/followup-lifecycle"
+import { prStabilize } from "@/inngest/functions/cursor/pr-stabilize"
 import { echoFunction } from "@/inngest/functions/debug/echo"
 import { analysisFunction } from "@/inngest/functions/pipeline/analysis"
 import { approachesFunction } from "@/inngest/functions/pipeline/approaches"
@@ -16,6 +17,7 @@ import { stopFunction } from "@/inngest/functions/sandbox/stop"
 const coreFunctions = [
 	agentLifecycle,
 	followupLifecycle,
+	prStabilize,
 	codeFunction,
 	exploreFunction,
 	orchestrateFunction,
