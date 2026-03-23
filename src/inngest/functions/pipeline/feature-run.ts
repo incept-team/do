@@ -1,4 +1,5 @@
 import * as errors from "@superbuilders/errors"
+import * as logger from "@superbuilders/slog"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "@/db"
@@ -28,11 +29,21 @@ import {
 	updateFeatureRunPhase
 } from "@/lib/pipeline/persistence"
 import { createPR } from "@/lib/pipeline/pr-creation"
+import { loadRepoMemories, upsertRepoMemory } from "@/lib/pipeline/repo-memory"
+import type { PhaseStatus } from "@/lib/pipeline/slack-status"
+import { transitionPhase } from "@/lib/pipeline/slack-status"
 
 const CTA_TIMEOUT = "30d" as const
 
+type PipelineMode = "autonomous" | "supervised"
+
 type InngestStep = Parameters<Parameters<typeof inngest.createFunction>[2]>[0]["step"]
 type InngestLogger = Parameters<Parameters<typeof inngest.createFunction>[2]>[0]["logger"]
+
+type SlackContext = {
+	threadId: string | undefined
+	messageId: string | undefined
+}
 
 type Memory = { phase: string; kind: string; content: string }
 
@@ -43,6 +54,21 @@ const MemoryArraySchema = z.array(
 		content: z.string()
 	})
 )
+
+async function emitSlackPhase(
+	ctx: SlackContext,
+	previousPhase: PhaseStatus | undefined,
+	newPhase: PhaseStatus,
+	detail: string,
+	step: InngestStep
+): Promise<void> {
+	if (!ctx.threadId || !ctx.messageId) return
+	const threadId = ctx.threadId
+	const messageId = ctx.messageId
+	await step.run(`slack-phase-${newPhase}`, async function slackPhaseStep() {
+		await transitionPhase({ threadId, messageId, previousPhase, newPhase, detail })
+	})
+}
 
 async function readMemoriesFromDb(
 	runId: string,
@@ -276,13 +302,90 @@ async function selectApproach(ctx: {
 	return { ok: true, selected: found }
 }
 
+function pickBestApproach(
+	approachesOutput: ApproachesOutput
+): ApproachesOutput["approaches"][number] {
+	const recommended = approachesOutput.recommendation
+	const approaches = approachesOutput.approaches
+	const lowerRecommended = recommended.toLowerCase()
+	const match = approaches.find(function matchRecommendation(a) {
+		if (lowerRecommended.includes(a.id.toLowerCase())) return true
+		return lowerRecommended.includes(a.title.toLowerCase())
+	})
+	const first = approaches[0]
+	if (!first) {
+		logger.error("no approaches available to select")
+		throw errors.new("no approaches available to select")
+	}
+	const chosen = match ? match : first
+	logger.info("auto-selected approach", {
+		approachId: chosen.id,
+		title: chosen.title,
+		total: approaches.length
+	})
+	return chosen
+}
+
+async function requireApproval(ctx: {
+	isAutonomous: boolean
+	runId: string
+	sandboxId: string
+	phaseResultId: string
+	message: string
+	stepPrefix: string
+	slack: SlackContext
+	slackPreviousPhase: PhaseStatus
+	step: InngestStep
+	logger: InngestLogger
+}): Promise<{ proceed: true } | { proceed: false; failure: { status: "failed"; reason: string } }> {
+	if (ctx.isAutonomous) {
+		return { proceed: true }
+	}
+
+	const ctaId = await ctx.step.run(`gen-cta-id-${ctx.stepPrefix}`, function genCtaId() {
+		return crypto.randomUUID()
+	})
+	const ctaResponse = await emitCtaAndWait(
+		ctaId,
+		{ ctaId, runId: ctx.runId, kind: "approval" as const, message: ctx.message },
+		ctx.stepPrefix,
+		ctx.step,
+		ctx.logger
+	)
+	if (ctaResponse) {
+		return { proceed: true }
+	}
+
+	await emitSlackPhase(
+		ctx.slack,
+		ctx.slackPreviousPhase,
+		"failed",
+		`CTA timed out (${ctx.stepPrefix}).`,
+		ctx.step
+	)
+	const failure = await handleCtaTimeout(
+		ctx.runId,
+		ctx.sandboxId,
+		ctx.phaseResultId,
+		ctx.step,
+		ctx.logger
+	)
+	return { proceed: false, failure }
+}
+
 const featureRunFunction = inngest.createFunction(
 	{ id: "paul/pipeline/feature-run" },
 	{ event: "paul/pipeline/feature-run" },
 	async ({ event, logger, step }) => {
 		const { prompt, githubRepoUrl, githubBranch, runtime } = event.data
+		const mode: PipelineMode = event.data.mode ? event.data.mode : "supervised"
+		const slack: SlackContext = {
+			threadId: event.data.slackThreadId,
+			messageId: event.data.slackMessageId
+		}
+		const isAutonomous = mode === "autonomous"
 
-		logger.info("starting feature run", { githubRepoUrl, githubBranch, runtime })
+		logger.info("starting feature run", { githubRepoUrl, githubBranch, runtime, mode })
 
 		const sandboxResult = await step.invoke("create-sandbox", {
 			function: sandboxCreateFunction,
@@ -325,6 +428,8 @@ const featureRunFunction = inngest.createFunction(
 			return id
 		})
 
+		await emitSlackPhase(slack, undefined, "analysis", "Exploring the codebase...", step)
+
 		const analysisPhaseResultId = await step.run(
 			"create-phase-analysis",
 			async function createAnalysisPhase() {
@@ -336,10 +441,26 @@ const featureRunFunction = inngest.createFunction(
 
 		const analysisMemories = await readMemoriesFromDb(runId, "read-memories-analysis", step, logger)
 
+		const repoMems = await step.run("load-repo-memories", async function loadRepoMems() {
+			return loadRepoMemories(db, githubRepoUrl)
+		})
+
+		const repoMemoriesAsRunMemories: Memory[] = repoMems.map(function toRunMemory(m) {
+			return { phase: m.phase ? m.phase : "repo", kind: m.key, content: m.content }
+		})
+		const enrichedMemories = [...repoMemoriesAsRunMemories, ...analysisMemories]
+
 		const analysisInvokeResult = await errors.try(
 			step.invoke("invoke-analysis", {
 				function: analysisFunction,
-				data: { runId, sandboxId, prompt, githubRepoUrl, githubBranch, memories: analysisMemories }
+				data: {
+					runId,
+					sandboxId,
+					prompt,
+					githubRepoUrl,
+					githubBranch,
+					memories: enrichedMemories
+				}
 			})
 		)
 		if (analysisInvokeResult.error) {
@@ -353,29 +474,50 @@ const featureRunFunction = inngest.createFunction(
 			await passPhaseResult(db, analysisPhaseResultId, analysisOutput)
 		})
 
+		await step.run("persist-repo-memories-analysis", async function persistRepoMems() {
+			await upsertRepoMemory(
+				db,
+				githubRepoUrl,
+				"architecture",
+				analysisOutput.feasibilityAssessment,
+				{ phase: "analysis", runId }
+			)
+			if (analysisOutput.architecturalConstraints.length > 0) {
+				await upsertRepoMemory(
+					db,
+					githubRepoUrl,
+					"constraints",
+					analysisOutput.architecturalConstraints.join("; "),
+					{ phase: "analysis", runId }
+				)
+			}
+			if (analysisOutput.risks.length > 0) {
+				await upsertRepoMemory(db, githubRepoUrl, "known-risks", analysisOutput.risks.join("; "), {
+					phase: "analysis",
+					runId
+				})
+			}
+		})
+
 		await step.run("advance-phase-analysis", async function advanceAnalysis() {
 			await updateFeatureRunPhase(db, runId, "approaches")
 		})
 
-		const analysisCtaId = await step.run("gen-cta-id-analysis", function genCtaId() {
-			return crypto.randomUUID()
-		})
-		const analysisCtaResponse = await emitCtaAndWait(
-			analysisCtaId,
-			{
-				ctaId: analysisCtaId,
-				runId,
-				kind: "approval" as const,
-				message: "Analysis complete. Approve to proceed to approach generation?"
-			},
-			"after-analysis",
+		const analysisGate = await requireApproval({
+			isAutonomous,
+			runId,
+			sandboxId,
+			phaseResultId: analysisPhaseResultId,
+			message: "Analysis complete. Approve to proceed to approach generation?",
+			stepPrefix: "after-analysis",
+			slack,
+			slackPreviousPhase: "analysis",
 			step,
 			logger
-		)
+		})
+		if (!analysisGate.proceed) return analysisGate.failure
 
-		if (!analysisCtaResponse) {
-			return handleCtaTimeout(runId, sandboxId, analysisPhaseResultId, step, logger)
-		}
+		await emitSlackPhase(slack, "analysis", "approaches", "Generating design proposals...", step)
 
 		const approachesPhaseResultId = await step.run(
 			"create-phase-approaches",
@@ -429,22 +571,33 @@ const featureRunFunction = inngest.createFunction(
 			await updateFeatureRunPhase(db, runId, "judging")
 		})
 
-		const approachResult = await selectApproach({
-			approachesOutput,
-			approachesPhaseResultId,
-			runId,
-			sandboxId,
-			step,
-			logger
-		})
+		let selectedApproach: unknown
 
-		if (!approachResult.ok) {
-			return approachResult.failure
+		if (isAutonomous) {
+			selectedApproach = await step.run("auto-select-approach", function autoSelectStep() {
+				return pickBestApproach(approachesOutput)
+			})
+		} else {
+			const approachResult = await selectApproach({
+				approachesOutput,
+				approachesPhaseResultId,
+				runId,
+				sandboxId,
+				step,
+				logger
+			})
+
+			if (!approachResult.ok) {
+				await emitSlackPhase(slack, "approaches", "failed", "Approach selection timed out.", step)
+				return approachResult.failure
+			}
+
+			selectedApproach = approachResult.selected
 		}
 
-		const selectedApproach = approachResult.selected
-
 		logger.info("approach selected", { runId })
+
+		await emitSlackPhase(slack, "approaches", "judging", "Evaluating selected approach...", step)
 
 		const judgingPhaseResultId = await step.run(
 			"create-phase-judging",
@@ -487,25 +640,21 @@ const featureRunFunction = inngest.createFunction(
 			await updateFeatureRunPhase(db, runId, "implementation")
 		})
 
-		const judgingCtaId = await step.run("gen-cta-id-judging", function genCtaId() {
-			return crypto.randomUUID()
-		})
-		const judgingCtaResponse = await emitCtaAndWait(
-			judgingCtaId,
-			{
-				ctaId: judgingCtaId,
-				runId,
-				kind: "approval" as const,
-				message: "Approach passed review. Begin implementation?"
-			},
-			"after-judging",
+		const judgingGate = await requireApproval({
+			isAutonomous,
+			runId,
+			sandboxId,
+			phaseResultId: judgingPhaseResultId,
+			message: "Approach passed review. Begin implementation?",
+			stepPrefix: "after-judging",
+			slack,
+			slackPreviousPhase: "judging",
 			step,
 			logger
-		)
+		})
+		if (!judgingGate.proceed) return judgingGate.failure
 
-		if (!judgingCtaResponse) {
-			return handleCtaTimeout(runId, sandboxId, judgingPhaseResultId, step, logger)
-		}
+		await emitSlackPhase(slack, "judging", "implementation", "Implementing changes...", step)
 
 		const implPhaseResultId = await step.run(
 			"create-phase-implementation",
@@ -554,25 +703,19 @@ const featureRunFunction = inngest.createFunction(
 			await updateFeatureRunPhase(db, runId, "pr")
 		})
 
-		const implCtaId = await step.run("gen-cta-id-implementation", function genCtaId() {
-			return crypto.randomUUID()
-		})
-		const implCtaResponse = await emitCtaAndWait(
-			implCtaId,
-			{
-				ctaId: implCtaId,
-				runId,
-				kind: "approval" as const,
-				message: "Implementation complete, all gates pass. Create PR?"
-			},
-			"after-implementation",
+		const implGate = await requireApproval({
+			isAutonomous,
+			runId,
+			sandboxId,
+			phaseResultId: implPhaseResultId,
+			message: "Implementation complete, all gates pass. Create PR?",
+			stepPrefix: "after-implementation",
+			slack,
+			slackPreviousPhase: "implementation",
 			step,
 			logger
-		)
-
-		if (!implCtaResponse) {
-			return handleCtaTimeout(runId, sandboxId, implPhaseResultId, step, logger)
-		}
+		})
+		if (!implGate.proceed) return implGate.failure
 
 		const prPhaseResultId = await step.run("create-phase-pr", async function createPrPhase() {
 			const id = crypto.randomUUID()
@@ -595,18 +738,55 @@ const featureRunFunction = inngest.createFunction(
 			await passPhaseResult(db, prPhaseResultId, prResult)
 		})
 
+		await emitSlackPhase(
+			slack,
+			"implementation",
+			"pr_created",
+			`PR created: <${prResult.prUrl}|#${prResult.prNumber} — ${prResult.title}>`,
+			step
+		)
+
+		if (isAutonomous) {
+			await step.sendEvent("trigger-ci-fix", {
+				name: "paul/pipeline/ci-fix" as const,
+				data: {
+					runId,
+					sandboxId,
+					prompt,
+					githubRepoUrl,
+					githubBranch,
+					branch: implOutput.branch,
+					prNumber: prResult.prNumber,
+					prUrl: prResult.prUrl,
+					slackThreadId: slack.threadId,
+					slackMessageId: slack.messageId,
+					cycle: 1
+				}
+			})
+		}
+
 		await step.run("complete-run", async function completeRun() {
 			await completeFeatureRun(db, runId)
 		})
 
-		await step.invoke("stop-sandbox", {
+		await step.invoke("stop-sandbox-done", {
 			function: sandboxStopFunction,
 			data: { sandboxId }
 		})
 
-		logger.info("feature run complete", { runId, prUrl: prResult.prUrl })
+		if (!isAutonomous) {
+			await emitSlackPhase(
+				slack,
+				"pr_created",
+				"complete",
+				"Pipeline complete. PR is ready for review.",
+				step
+			)
+		}
 
-		return { status: "completed" as const, prUrl: prResult.prUrl }
+		logger.info("feature run complete", { runId, prUrl: prResult.prUrl, mode })
+
+		return { status: "completed" as const, prUrl: prResult.prUrl, mode }
 	}
 )
 

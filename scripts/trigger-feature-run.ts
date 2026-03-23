@@ -25,13 +25,16 @@ logger.info("triggering feature run", {
 	branch: targetBranch
 })
 
+const mode = process.argv[5] === "autonomous" ? ("autonomous" as const) : ("supervised" as const)
+
 const result = await inngest.send({
 	name: "paul/pipeline/feature-run",
 	data: {
 		prompt,
 		githubRepoUrl: repoUrl,
 		githubBranch: targetBranch,
-		runtime: "node24"
+		runtime: "node24",
+		mode
 	}
 })
 

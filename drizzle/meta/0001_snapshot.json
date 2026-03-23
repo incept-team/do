@@ -1,0 +1,1273 @@
+{
+	"id": "ab7eee3c-a750-465b-8b67-208d4a062624",
+	"prevId": "a1b685a6-4776-49bc-a542-4a2040c8c997",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"agent.agent_invocations": {
+			"name": "agent_invocations",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"phase_result_id": {
+					"name": "phase_result_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"parent_invocation_id": {
+					"name": "parent_invocation_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"agent_type": {
+					"name": "agent_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"model_id": {
+					"name": "model_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"system_prompt": {
+					"name": "system_prompt",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"input_messages": {
+					"name": "input_messages",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"finish_reason": {
+					"name": "finish_reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"output_text": {
+					"name": "output_text",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"input_tokens": {
+					"name": "input_tokens",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"output_tokens": {
+					"name": "output_tokens",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"total_tokens": {
+					"name": "total_tokens",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"steps": {
+					"name": "steps",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tool_calls": {
+					"name": "tool_calls",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"raw_response": {
+					"name": "raw_response",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"agent_invocations_phase_result_id_phase_results_id_fk": {
+					"name": "agent_invocations_phase_result_id_phase_results_id_fk",
+					"tableFrom": "agent_invocations",
+					"tableTo": "phase_results",
+					"schemaTo": "agent",
+					"columnsFrom": ["phase_result_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"agent_invocations_parent_invocation_id_agent_invocations_id_fk": {
+					"name": "agent_invocations_parent_invocation_id_agent_invocations_id_fk",
+					"tableFrom": "agent_invocations",
+					"tableTo": "agent_invocations",
+					"schemaTo": "agent",
+					"columnsFrom": ["parent_invocation_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.cta_events": {
+			"name": "cta_events",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase_result_id": {
+					"name": "phase_result_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"invocation_id": {
+					"name": "invocation_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"tool_call_id": {
+					"name": "tool_call_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "cta_kind",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"request_message": {
+					"name": "request_message",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"request_prompt": {
+					"name": "request_prompt",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"request_placeholder": {
+					"name": "request_placeholder",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"request_options": {
+					"name": "request_options",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"response_approved": {
+					"name": "response_approved",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"response_reason": {
+					"name": "response_reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"response_text": {
+					"name": "response_text",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"response_selected_id": {
+					"name": "response_selected_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"requested_at": {
+					"name": "requested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"responded_at": {
+					"name": "responded_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"timed_out": {
+					"name": "timed_out",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"cta_events_run_id_idx": {
+					"name": "cta_events_run_id_idx",
+					"columns": [
+						{
+							"expression": "run_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"cta_events_run_id_feature_runs_id_fk": {
+					"name": "cta_events_run_id_feature_runs_id_fk",
+					"tableFrom": "cta_events",
+					"tableTo": "feature_runs",
+					"schemaTo": "agent",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"cta_events_phase_result_id_phase_results_id_fk": {
+					"name": "cta_events_phase_result_id_phase_results_id_fk",
+					"tableFrom": "cta_events",
+					"tableTo": "phase_results",
+					"schemaTo": "agent",
+					"columnsFrom": ["phase_result_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"cta_events_invocation_id_agent_invocations_id_fk": {
+					"name": "cta_events_invocation_id_agent_invocations_id_fk",
+					"tableFrom": "cta_events",
+					"tableTo": "agent_invocations",
+					"schemaTo": "agent",
+					"columnsFrom": ["invocation_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.feature_runs": {
+			"name": "feature_runs",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"prompt": {
+					"name": "prompt",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sandbox_id": {
+					"name": "sandbox_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"github_repo_url": {
+					"name": "github_repo_url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"github_branch": {
+					"name": "github_branch",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"current_phase": {
+					"name": "current_phase",
+					"type": "feature_phase",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"memories": {
+					"name": "memories",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"feature_runs_created_at_idx": {
+					"name": "feature_runs_created_at_idx",
+					"columns": [
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"feature_runs_sandbox_id_sandboxes_id_fk": {
+					"name": "feature_runs_sandbox_id_sandboxes_id_fk",
+					"tableFrom": "feature_runs",
+					"tableTo": "sandboxes",
+					"schemaTo": "agent",
+					"columnsFrom": ["sandbox_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.phase_results": {
+			"name": "phase_results",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "feature_phase",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "phase_status",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"output": {
+					"name": "output",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"phase_results_run_id_phase_idx": {
+					"name": "phase_results_run_id_phase_idx",
+					"columns": [
+						{
+							"expression": "run_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "phase",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"phase_results_run_id_feature_runs_id_fk": {
+					"name": "phase_results_run_id_feature_runs_id_fk",
+					"tableFrom": "phase_results",
+					"tableTo": "feature_runs",
+					"schemaTo": "agent",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.repo_memories": {
+			"name": "repo_memories",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"repo_url": {
+					"name": "repo_url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"key": {
+					"name": "key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"content": {
+					"name": "content",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"run_id": {
+					"name": "run_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"repo_memories_repo_url_idx": {
+					"name": "repo_memories_repo_url_idx",
+					"columns": [
+						{
+							"expression": "repo_url",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"repo_memories_repo_url_key_idx": {
+					"name": "repo_memories_repo_url_key_idx",
+					"columns": [
+						{
+							"expression": "repo_url",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "key",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"repo_memories_run_id_feature_runs_id_fk": {
+					"name": "repo_memories_run_id_feature_runs_id_fk",
+					"tableFrom": "repo_memories",
+					"tableTo": "feature_runs",
+					"schemaTo": "agent",
+					"columnsFrom": ["run_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.sandboxes": {
+			"name": "sandboxes",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "sandbox_status",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"runtime": {
+					"name": "runtime",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"memory": {
+					"name": "memory",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"vcpus": {
+					"name": "vcpus",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"region": {
+					"name": "region",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"cwd": {
+					"name": "cwd",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"timeout": {
+					"name": "timeout",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"network_policy": {
+					"name": "network_policy",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"interactive_port": {
+					"name": "interactive_port",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"routes": {
+					"name": "routes",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_snapshot_id": {
+					"name": "source_snapshot_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_type": {
+					"name": "source_type",
+					"type": "sandbox_source_type",
+					"typeSchema": "agent",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_url": {
+					"name": "source_url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_revision": {
+					"name": "source_revision",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_depth": {
+					"name": "source_depth",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"requested_at": {
+					"name": "requested_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"requested_stop_at": {
+					"name": "requested_stop_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"stopped_at": {
+					"name": "stopped_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"aborted_at": {
+					"name": "aborted_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"snapshotted_at": {
+					"name": "snapshotted_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"duration": {
+					"name": "duration",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.bot_cache": {
+			"name": "bot_cache",
+			"schema": "agent",
+			"columns": {
+				"key": {
+					"name": "key",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"value": {
+					"name": "value",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.bot_locks": {
+			"name": "bot_locks",
+			"schema": "agent",
+			"columns": {
+				"thread_id": {
+					"name": "thread_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"token": {
+					"name": "token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.bot_subscriptions": {
+			"name": "bot_subscriptions",
+			"schema": "agent",
+			"columns": {
+				"thread_id": {
+					"name": "thread_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"subscribed_at": {
+					"name": "subscribed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.cursor_agent_threads": {
+			"name": "cursor_agent_threads",
+			"schema": "agent",
+			"columns": {
+				"thread_id": {
+					"name": "thread_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"agent_id": {
+					"name": "agent_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"repository": {
+					"name": "repository",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ref": {
+					"name": "ref",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"branch_name": {
+					"name": "branch_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"agent_url": {
+					"name": "agent_url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"pending_followup": {
+					"name": "pending_followup",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"pending_followup_images": {
+					"name": "pending_followup_images",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.cursor_thread_queue": {
+			"name": "cursor_thread_queue",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"thread_id": {
+					"name": "thread_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"prompt": {
+					"name": "prompt",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"raw_message": {
+					"name": "raw_message",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"slack_user_id": {
+					"name": "slack_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"message_id": {
+					"name": "message_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.prompt_phase_overrides": {
+			"name": "prompt_phase_overrides",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"repository": {
+					"name": "repository",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"header": {
+					"name": "header",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"content": {
+					"name": "content",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.prompt_phases": {
+			"name": "prompt_phases",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"header": {
+					"name": "header",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"content": {
+					"name": "content",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.prompt_repo_phases": {
+			"name": "prompt_repo_phases",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"repository": {
+					"name": "repository",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"prompt_repo_phases_repo_phase": {
+					"name": "prompt_repo_phases_repo_phase",
+					"nullsNotDistinct": false,
+					"columns": ["repository", "phase"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.prompt_user_overrides": {
+			"name": "prompt_user_overrides",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"slack_user_id": {
+					"name": "slack_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"header": {
+					"name": "header",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"content": {
+					"name": "content",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"prompt_user_overrides_user_phase_header": {
+					"name": "prompt_user_overrides_user_phase_header",
+					"nullsNotDistinct": false,
+					"columns": ["slack_user_id", "phase", "header"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"agent.prompt_user_phases": {
+			"name": "prompt_user_phases",
+			"schema": "agent",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"slack_user_id": {
+					"name": "slack_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phase": {
+					"name": "phase",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"position": {
+					"name": "position",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"prompt_user_phases_user_phase": {
+					"name": "prompt_user_phases_user_phase",
+					"nullsNotDistinct": false,
+					"columns": ["slack_user_id", "phase"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {
+		"agent.cta_kind": {
+			"name": "cta_kind",
+			"schema": "agent",
+			"values": ["approval", "text", "choice"]
+		},
+		"agent.feature_phase": {
+			"name": "feature_phase",
+			"schema": "agent",
+			"values": ["analysis", "approaches", "judging", "implementation", "pr", "completed", "failed"]
+		},
+		"agent.phase_status": {
+			"name": "phase_status",
+			"schema": "agent",
+			"values": ["running", "passed", "failed"]
+		},
+		"agent.pipeline_mode": {
+			"name": "pipeline_mode",
+			"schema": "agent",
+			"values": ["autonomous", "supervised"]
+		},
+		"agent.sandbox_source_type": {
+			"name": "sandbox_source_type",
+			"schema": "agent",
+			"values": ["git", "tarball", "snapshot", "empty"]
+		},
+		"agent.sandbox_status": {
+			"name": "sandbox_status",
+			"schema": "agent",
+			"values": ["pending", "running", "stopping", "stopped", "failed", "aborted", "snapshotting"]
+		}
+	},
+	"schemas": {
+		"agent": "agent"
+	},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

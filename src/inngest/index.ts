@@ -63,7 +63,10 @@ const schema = {
 		prompt: z.string().min(1),
 		githubRepoUrl: z.string().url(),
 		githubBranch: z.string().min(1),
-		runtime: z.enum(["node24", "node22", "python3.13"]).default("node24")
+		runtime: z.enum(["node24", "node22", "python3.13"]).default("node24"),
+		mode: z.enum(["autonomous", "supervised"]).default("supervised"),
+		slackThreadId: z.string().min(1).optional(),
+		slackMessageId: z.string().min(1).optional()
 	}),
 	"paul/pipeline/analysis": z.object({
 		runId: z.string().uuid(),
@@ -126,6 +129,19 @@ const schema = {
 		selectedApproach: z.unknown(),
 		analysisOutput: z.unknown(),
 		judgingOutput: z.unknown()
+	}),
+	"paul/pipeline/ci-fix": z.object({
+		runId: z.string().uuid(),
+		sandboxId: z.string().min(1),
+		prompt: z.string().min(1),
+		githubRepoUrl: z.string().url(),
+		githubBranch: z.string().min(1),
+		branch: z.string().min(1),
+		prNumber: z.number().int(),
+		prUrl: z.string().url(),
+		slackThreadId: z.string().min(1).optional(),
+		slackMessageId: z.string().min(1).optional(),
+		cycle: z.number().int().min(1).max(10).default(1)
 	}),
 	"cursor/agent.launch": z.object({
 		prompt: z.string().min(1),

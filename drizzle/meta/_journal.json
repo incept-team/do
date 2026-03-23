@@ -1,13 +1,20 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1771950734736,
-      "tag": "0000_cynical_mentor",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1771950734736,
+			"tag": "0000_cynical_mentor",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1774150865303,
+			"tag": "0001_pink_tenebrous",
+			"breakpoints": true
+		}
+	]
 }

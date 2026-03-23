@@ -156,6 +156,26 @@ const ctaEvents = agentSchema.table(
 	(table) => [index("cta_events_run_id_idx").on(table.runId)]
 )
 
+const pipelineModeEnum = agentSchema.enum("pipeline_mode", ["autonomous", "supervised"])
+
+const repoMemories = agentSchema.table(
+	"repo_memories",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		repoUrl: text("repo_url").notNull(),
+		key: text("key").notNull(),
+		content: text("content").notNull(),
+		phase: text("phase"),
+		runId: uuid("run_id").references(() => featureRuns.id),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull()
+	},
+	(table) => [
+		index("repo_memories_repo_url_idx").on(table.repoUrl),
+		index("repo_memories_repo_url_key_idx").on(table.repoUrl, table.key)
+	]
+)
+
 export {
 	agentInvocations,
 	agentSchema,
@@ -165,6 +185,8 @@ export {
 	featureRuns,
 	phaseResults,
 	phaseStatusEnum,
+	pipelineModeEnum,
+	repoMemories,
 	sandboxSourceTypeEnum,
 	sandboxStatusEnum,
 	sandboxes

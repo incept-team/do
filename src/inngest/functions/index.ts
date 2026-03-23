@@ -8,6 +8,7 @@ import { prStabilize } from "@/inngest/functions/cursor/pr-stabilize"
 import { echoFunction } from "@/inngest/functions/debug/echo"
 import { analysisFunction } from "@/inngest/functions/pipeline/analysis"
 import { approachesFunction } from "@/inngest/functions/pipeline/approaches"
+import { ciFixFunction } from "@/inngest/functions/pipeline/ci-fix"
 import { featureRunFunction } from "@/inngest/functions/pipeline/feature-run"
 import { implementationFunction } from "@/inngest/functions/pipeline/implementation"
 import { judgingFunction } from "@/inngest/functions/pipeline/judging"
@@ -23,6 +24,7 @@ const coreFunctions = [
 	orchestrateFunction,
 	analysisFunction,
 	approachesFunction,
+	ciFixFunction,
 	featureRunFunction,
 	implementationFunction,
 	judgingFunction,

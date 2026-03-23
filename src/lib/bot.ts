@@ -628,6 +628,28 @@ async function handleCursorCommand(event: {
 				optional: true
 			}),
 			RadioSelect({
+				id: "pipelineMode",
+				label: "Pipeline Mode",
+				initialOption: "cursor",
+				options: [
+					SelectOption({
+						label: "Quick (Cursor Agent)",
+						value: "cursor",
+						description: "Single Cursor agent — fast for small tasks"
+					}),
+					SelectOption({
+						label: "Autonomous Pipeline",
+						value: "autonomous",
+						description: "Full pipeline: analyze → design → judge → implement → PR → CI fix"
+					}),
+					SelectOption({
+						label: "Supervised Pipeline",
+						value: "supervised",
+						description: "Full pipeline with human approval gates between phases"
+					})
+				]
+			}),
+			RadioSelect({
 				id: "autoCreatePr",
 				label: "Auto-Create PR",
 				initialOption: "true",
@@ -711,6 +733,7 @@ function resolveLaunchFields(values: Record<string, string>): {
 	autoCreatePr: boolean | undefined
 	openAsCursorGithubApp: boolean | undefined
 	skipReviewerRequest: boolean | undefined
+	pipelineMode: "cursor" | "autonomous" | "supervised"
 } {
 	const resolvedModel = values.model && values.model !== "__auto__" ? values.model : undefined
 	const resolvedBranch = values.branchName?.trim() ? values.branchName.trim() : undefined
@@ -722,6 +745,12 @@ function resolveLaunchFields(values: Record<string, string>): {
 	const resolvedSkip = values.skipReviewerRequest
 		? values.skipReviewerRequest === "true"
 		: undefined
+	const pipelineMode =
+		values.pipelineMode === "autonomous"
+			? ("autonomous" as const)
+			: values.pipelineMode === "supervised"
+				? ("supervised" as const)
+				: ("cursor" as const)
 
 	return {
 		model: resolvedModel,
@@ -729,8 +758,54 @@ function resolveLaunchFields(values: Record<string, string>): {
 		ref: resolvedRef,
 		autoCreatePr: resolvedAutoCreatePr,
 		openAsCursorGithubApp: resolvedOpenAs,
-		skipReviewerRequest: resolvedSkip
+		skipReviewerRequest: resolvedSkip,
+		pipelineMode
 	}
+}
+
+function buildModeLabel(mode: "cursor" | "autonomous" | "supervised"): string {
+	if (mode === "autonomous") return " *(autonomous pipeline)*"
+	if (mode === "supervised") return " *(supervised pipeline)*"
+	return ""
+}
+
+async function launchPipeline(ctx: {
+	prompt: string
+	repository: string
+	ref: string
+	pipelineMode: "autonomous" | "supervised"
+	threadId: string
+	messageId: string
+	userId: string
+}): Promise<ModalFormErrors | undefined> {
+	const githubRepoUrl = `https://github.com/${ctx.repository}`
+	const sendResult = await errors.try(
+		inngest.send({
+			name: "paul/pipeline/feature-run",
+			data: {
+				prompt: ctx.prompt,
+				githubRepoUrl,
+				githubBranch: ctx.ref,
+				runtime: "node24" as const,
+				mode: ctx.pipelineMode,
+				slackThreadId: ctx.threadId,
+				slackMessageId: ctx.messageId
+			}
+		})
+	)
+	if (sendResult.error) {
+		logger.error("failed to send pipeline event", { error: sendResult.error })
+		return { action: "errors", errors: { prompt: "Failed to launch pipeline. Try again." } }
+	}
+
+	logger.info("pipeline launched from modal", {
+		userId: ctx.userId,
+		repository: ctx.repository,
+		mode: ctx.pipelineMode,
+		threadId: ctx.threadId
+	})
+
+	return undefined
 }
 
 async function handleLaunchFormSubmit(event: {
@@ -755,11 +830,17 @@ async function handleLaunchFormSubmit(event: {
 		return { action: "errors", errors: { prompt: "Could not determine channel. Try again." } }
 	}
 
-	const composedPrompt = await composeWorkflowPrompt(repository, prompt, event.user.userId)
+	const isPipeline =
+		resolved.pipelineMode === "autonomous" ? true : resolved.pipelineMode === "supervised"
 
+	const composedPrompt = isPipeline
+		? prompt
+		: await composeWorkflowPrompt(repository, prompt, event.user.userId)
+
+	const modeLabel = buildModeLabel(resolved.pipelineMode)
 	const modelLabel = resolved.model ? ` (${resolved.model})` : ""
 	const branchLabel = resolved.branchName ? ` → \`${resolved.branchName}\`` : ""
-	const confirmationText = `*Launching agent*${modelLabel} on \`${repository}\`${branchLabel}\n\n_"${truncate(prompt, 200)}"_`
+	const confirmationText = `*Launching${modeLabel}*${modelLabel} on \`${repository}\`${branchLabel}\n\n_"${truncate(prompt, 200)}"_`
 
 	const postResult = await errors.try(event.relatedChannel.post(confirmationText))
 	if (postResult.error) {
@@ -776,6 +857,20 @@ async function handleLaunchFormSubmit(event: {
 	const reactResult = await errors.try(sentMessage.addReaction("one-sec-cooking"))
 	if (reactResult.error) {
 		logger.warn("failed to react to launch message", { error: reactResult.error })
+	}
+
+	if (isPipeline) {
+		const pipelineMode =
+			resolved.pipelineMode === "autonomous" ? ("autonomous" as const) : ("supervised" as const)
+		return launchPipeline({
+			prompt: composedPrompt,
+			repository,
+			ref: resolved.ref,
+			pipelineMode,
+			threadId,
+			messageId: sentMessage.id,
+			userId: event.user.userId
+		})
 	}
 
 	const sendResult = await errors.try(
