@@ -1,0 +1,2 @@
+Cursor Cloud Agent API works from Claude Code.
+Timestamp: 2026-02-24T23:21:00Z
